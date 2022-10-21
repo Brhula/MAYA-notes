@@ -1,0 +1,351 @@
+global proc shelf_GWR () {
+    global string $gBuffStr;
+    global string $gBuffStr0;
+    global string $gBuffStr1;
+
+
+    shelfButton
+        -enableCommandRepeat 1
+        -flexibleWidthType 2
+        -flexibleWidthValue 32
+        -enable 1
+        -width 32
+        -height 54
+        -manage 1
+        -visible 1
+        -preventOverride 0
+        -annotation "Playblast PNG image sequence" 
+        -enableBackground 0
+        -backgroundColor 0 0 0 
+        -highlightColor 0.321569 0.521569 0.65098 
+        -align "center" 
+        -label "PB png" 
+        -labelOffset 0
+        -rotation 0
+        -flipX 0
+        -flipY 0
+        -useAlpha 1
+        -font "plainLabelFont" 
+        -overlayLabelColor 0.8 0.8 0.8 
+        -overlayLabelBackColor 0 0 0 0.5 
+        -image "playblast.png" 
+        -image1 "playblast.png" 
+        -style "iconAndTextVertical" 
+        -marginWidth 1
+        -marginHeight 1
+        -command "// Playblast to PNG\n// GW Barcelona / AUTOMATED viewport capture (playblast) Updated 2022 Marco Rossi\n// Playblast only polygons \n// with fixed window size\n// \n{\n  string $ws = `workspace -q -rd`; // Get current workspace\n  string $tmp = `file -q -sn -shn`;\n  string $nm= `basenameEx($tmp)`; // get scene name\n  string $usuario = `getenv \"USER\"`; // get user name\n  string $fecha =`date -f \"_YYYY_MM_DD_hhmm\"`;\n\n  // FOLDER to put playblast <------------\n  string $viewport_folder = \"viewport_captures/\"; // Initial value\n  if (`gmatch $nm \"*_ly_*\"`) $viewport_folder = \"viewport_captures/layout/\";\n    else if (`gmatch $nm \"*_ani_*\"`) $viewport_folder = \"viewport_captures/animation/\";\n    else if (`gmatch $nm \"*_fx_*\"`) $viewport_folder = \"viewport_captures/fx/\";\n    else $viewport_folder = \"viewport_captures/animation/\"; // Default value if everithing fails\n\n  float $gw_bg_color[3] = `displayRGBColor -q \"background\"`;\n  int $gw_bg_gradient = `displayPref -q -displayGradient`;\n\n  int $res_width = `getAttr defaultResolution.width`;\n  int $res_height = `getAttr defaultResolution.height`;\n\n\n  //string $playblast_directory_name = $nm+\"_\"+$usuario+$fecha;\n  string $playblast_directory_name = $nm;\n  sysFile -makeDir ($ws+$viewport_folder+ $playblast_directory_name); // Windows\n  // string $playblast_file = $ws+\"viewport_captures/animation/\"+ $playblast_directory_name+\"/\"+$nm+\"_\"+$usuario+$fecha;\n  string $playblast_file = $ws+$viewport_folder+ $playblast_directory_name+\"/\"+$nm;\n\n  // CAMERA WORK\n  string $cameras[] = `ls -type camera`;\n  int $there_is_a_rendereable_camera = 0;\n  for ($camera in $cameras) // Find first rendereable camera\n  {\n    // print($camera+\"\\n\");\n    if (getAttr ($camera+\".renderable\"))\n    {\n      $there_is_a_rendereable_camera = 1; // print(\"\\nThere is a render camera:\"+$camera+\"\\n\");\n      break;\n    }\n  }\n  // print($there_is_a_rendereable_camera);\n  if ($there_is_a_rendereable_camera){\n      // get camera parameters\n      float $CAM_overscan = `getAttr ($camera+\".overscan\")`;\n      float $CAM_filmGate = `getAttr ($camera+\".displayFilmGate\")`;\n      float $CAM_resolution = `getAttr ($camera+\".displayResolution\")`;\n\n      setAttr ($camera+\".overscan\") 1;\n      setAttr ($camera+\".dis   playResolution\") 0;\n\n      // Build a new windows to playblast\n       if (`window -exists playBlastWin`)\n       deleteUI playBlastWin;\n\n       int $renderWidth = 1920;\n       int $renderHeight = 1080;\n\n       string $window = `window  -title \"CAPTURE Window\" -w $renderWidth -h $renderHeight playBlastWin`;\n       paneLayout;\n       string $modelWin = `modelPanel  -menuBarVisible false`;\n       lookThroughModelPanel $camera $modelWin;\n       showWindow $window;\n       modelEditor -e\n           -allObjects 0\n           -polymeshes 1\n           -displayAppearance smoothShaded\n           -displayTextures true\n           -selectionHiliteDisplay false\n           -grid false\n           -imagePlane true\n            $modelWin;\n       modelEditor -e -av $modelWin;\n       // Change diplay of Background\n       displayPref -displayGradient false;\n       displayRGBColor background 0.36 0.36 0.36;\n\n      // -------------------------------------PLAYBLAST-------------\n      // playblast  -format image -sequenceTime 0 -clearCache 1 -viewer 1 -showOrnaments 1 -fp 4 -percent 50 -compression \"jpg\" -quality 70;\n      playblast  -format image\n                 -filename $playblast_file\n                 -forceOverwrite\n                   -sequenceTime 0\n                 -clearCache 1\n                 -viewer 1\n                 -showOrnaments 1\n                 -fp 4\n                 -percent 100\n                 -compression \"png\"\n                 -quality 70\n                 -widthHeight  $res_width $res_height;\n                 //-editorPanelName $panel_to_use\n\n       // recover parameters\n       setAttr ($camera+\".overscan\") $CAM_overscan;\n       setAttr ($camera+\".displayFilmGate\")  $CAM_filmGate;\n       setAttr ($camera+\".displayResolution\")  $CAM_resolution;\n       // Restore Background display\n       displayPref -displayGradient $gw_bg_gradient;\n       displayRGBColor background $gw_bg_color[0] $gw_bg_color[1] $gw_bg_color[2];\n\n       //lookThroughModelPanel $camera_in_viewport $panel_to_use;\n       print(\"\\n\\n-----------------------------------------------------------------\");\n       print(\"\\nCAMERA:\"+$camera+\"\\n\");\n       print(\"\\nPLAYBLAST file:\\n\");\n       print($playblast_file);\n       print(\"\\nIn directory:\\n\");\n       // string $directory_of_playblast = ($ws+\"viewport_captures/animation/\"+$nm);\n       string $result = substituteAllString(($ws+$viewport_folder+ $playblast_directory_name),\"/\",\"\\\\\");\n       print ($result);\n       // print(\"\\n-----------------------------------------------------------------\\n\\n\");\n       deleteUI playBlastWin;\n       confirmDialog -title \"Playblast done!\" -message (\"CAMERA:\\n\"+$camera+\"\\nPATH:\\n\"+$result) -button \"OK\" -icon \"information\";\n\n     }\n     else error(\"No rendereable camera in scene\");\n}" 
+        -sourceType "mel" 
+        -commandRepeatable 1
+        -flat 1
+    ;
+    shelfButton
+        -enableCommandRepeat 1
+        -flexibleWidthType 3
+        -flexibleWidthValue 32
+        -enable 1
+        -width 35
+        -height 54
+        -manage 1
+        -visible 1
+        -preventOverride 0
+        -annotation "Playblast to current project/viewport_capture/animation" 
+        -enableBackground 0
+        -backgroundColor 0 0 0 
+        -highlightColor 0.321569 0.521569 0.65098 
+        -align "center" 
+        -label "PB qt" 
+        -labelOffset 0
+        -rotation 0
+        -flipX 0
+        -flipY 0
+        -useAlpha 1
+        -font "plainLabelFont" 
+        -overlayLabelColor 0.8 0.8 0.8 
+        -overlayLabelBackColor 0 0 0 0.5 
+        -image "playblast.png" 
+        -image1 "playblast.png" 
+        -style "iconAndTextVertical" 
+        -marginWidth 1
+        -marginHeight 1
+        -command "// GW Barcelona / AUTOMATED viewport capture (playblast) Updated 2022 Marco Rossi 2022.01.19 11:34\n// 2022.01.20 - Added audio support from TimeSlider\n// Playblast only polygons \n// with fixed window size\n// \n{\n  string $ws = `workspace -q -rd`; // Get current workspace\n  string $tmp = `file -q -sn -shn`;\n  string $nm= `basenameEx($tmp)`; // get scene name\n  string $usuario = `getenv \"USER\"`; // get user name\n  string $fecha =`date -f \"_YYYY_MM_DD_hhmm\"`;\n\n  // FOLDER to put playblast <------------\n  string $viewport_folder = \"viewport_captures/\"; // Initial value\n  if (`gmatch $nm \"*_ly_*\"`) $viewport_folder = \"viewport_captures/layout/\";\n    else if (`gmatch $nm \"*_ani_*\"`) $viewport_folder = \"viewport_captures/animation/\";\n    else if (`gmatch $nm \"*_fx_*\"`) $viewport_folder = \"viewport_captures/fx/\";\n    else $viewport_folder = \"viewport_captures/animation/\";\n\n  float $gw_bg_color[3] = `displayRGBColor -q \"background\"`;\n  int $gw_bg_gradient = `displayPref -q -displayGradient`;\n\n  int $res_width = `getAttr defaultResolution.width`;\n  int $res_height = `getAttr defaultResolution.height`;\n \n  // string $playblast_file = $ws+\"viewport_captures/animation/\"+$nm+\"_\"+$usuario+$fecha+\".mov\";\n  string $playblast_file = $ws+$viewport_folder+$nm+\".mov\";\n\n  // CAMERA WORK\n  string $cameras[] = `ls -type camera`;\n  int $there_is_a_rendereable_camera = 0;\n  for ($camera in $cameras) // Find first rendereable camera\n  {\n    // print($camera+\"\\n\");\n    if (getAttr ($camera+\".renderable\"))\n    {\n      $there_is_a_rendereable_camera = 1; // print(\"\\nThere is a render camera:\"+$camera+\"\\n\");\n      break;\n    }\n  }\n  // print($there_is_a_rendereable_camera);\n  if ($there_is_a_rendereable_camera){\n      // get camera parameters\n      float $CAM_overscan = `getAttr ($camera+\".overscan\")`;\n      float $CAM_filmGate = `getAttr ($camera+\".displayFilmGate\")`;\n      float $CAM_resolution = `getAttr ($camera+\".displayResolution\")`;\n\n      setAttr ($camera+\".overscan\") 1;\n      setAttr ($camera+\".displayFilmGate\") 0;\n      setAttr ($camera+\".displayResolution\") 0;\n\n      // Build a new windows to playblast\n       if (`window -exists playBlastWin`)\n       deleteUI playBlastWin;\n\n       int $renderWidth = 1920;\n       int $renderHeight = 1080;\n\n       string $window = `window  -title \"CAPTURE Window\" -w $renderWidth -h $renderHeight playBlastWin`;\n       paneLayout;\n       string $modelWin = `modelPanel  -menuBarVisible false`;\n       lookThroughModelPanel $camera $modelWin;\n       showWindow $window;\n       modelEditor -e\n           -allObjects 0\n           -polymeshes 1\n           -displayAppearance smoothShaded\n           -displayTextures true\n           -selectionHiliteDisplay false\n           -grid false\n           -imagePlane true\n            $modelWin;\n       modelEditor -e -av $modelWin;\n       // Change diplay of Background\n       displayPref -displayGradient false;\n       displayRGBColor background 0.36 0.36 0.36;\n\n       // -------------------------------------PLAYBLAST-------------\n       global string $gPlayBackSlider;\n       string $audioNode = `timeControl -q -s $gPlayBackSlider`;\n       if ($audioNode==\"\") { // NO audio\n               playblast  -format qt\n                 -filename $playblast_file\n                 -forceOverwrite\n                   -sequenceTime 0\n                 -clearCache 1\n                 -viewer 1\n                 -showOrnaments 0\n                 -fp 4\n                 -percent 100\n                 -compression \"MPEG-4 Video\"\n                 -quality 90\n                 -widthHeight  $res_width $res_height;\n        }\n        else { // WITH audio\n        playblast  -format qt\n                 -sound $audioNode\n                 -filename $playblast_file\n                 -forceOverwrite\n                   -sequenceTime 0\n                 -clearCache 1\n                 -viewer 1\n                 -showOrnaments 1\n                 -fp 4\n                 -percent 100\n                 -compression \"MPEG-4 Video\"\n                 -quality 90\n                 -widthHeight  $res_width $res_height;\n                 //-editorPanelName $panel_to_use\n        }\n       // recover parameters\n       setAttr ($camera+\".overscan\") $CAM_overscan;\n       setAttr ($camera+\".displayFilmGate\")  $CAM_filmGate;\n       setAttr ($camera+\".displayResolution\")  $CAM_resolution;\n       // Restore Background display\n       displayPref -displayGradient $gw_bg_gradient;\n       displayRGBColor background $gw_bg_color[0] $gw_bg_color[1] $gw_bg_color[2];\n\n       //lookThroughModelPanel $camera_in_viewport $panel_to_use;\n       print(\"\\n\\n-----------------------------------------------------------------\");\n       print(\"\\nCAMERA:\"+$camera+\"\\n\");\n       print(\"\\nPLAYBLAST file:\\n\");\n       print($playblast_file);\n       print(\"\\nIn directory:\\n\");\n       string $result = substituteAllString(($ws+$viewport_folder),\"/\",\"\\\\\");\n       print ($result);\n       deleteUI playBlastWin;\n       confirmDialog -title \"Playblast done!\" -message (\"CAMERA:\\n\"+$camera+\"\\nPATH:\\n\"+$playblast_file) -button \"OK\" -icon \"information\";\n\n     }\n     else error(\"No rendereable camera in scene\");\n}\n" 
+        -sourceType "mel" 
+        -commandRepeatable 1
+        -flat 1
+        -mi "Playblast" ( "print(\"User defined menuItem\");" )
+    ;
+    shelfButton
+        -enableCommandRepeat 1
+        -flexibleWidthType 3
+        -flexibleWidthValue 32
+        -enable 1
+        -width 35
+        -height 54
+        -manage 1
+        -visible 1
+        -preventOverride 0
+        -annotation "Create HUD for animation" 
+        -enableBackground 0
+        -backgroundColor 0 0 0 
+        -highlightColor 0.321569 0.521569 0.65098 
+        -align "center" 
+        -label "HUD" 
+        -labelOffset 0
+        -rotation 0
+        -flipX 0
+        -flipY 0
+        -useAlpha 1
+        -font "plainLabelFont" 
+        -overlayLabelColor 0.8 0.8 0.8 
+        -overlayLabelBackColor 0 0 0 0.5 
+        -image "eye.png" 
+        -image1 "eye.png" 
+        -style "iconAndTextVertical" 
+        -marginWidth 1
+        -marginHeight 1
+        -command "// Create HUD for animators\n{\n     global proc string mg_string(string $string)\n    {\n        return $string;\n    }\n    \n    string $usuario = `getenv \"USER\"`;\n\n    catchQuiet  ( `\n    headsUpDisplay\t-l \"ANIMATOR: \"\n    \t\t\t-allowOverlap 1\n    \t\t\t-b 4\n    \t\t\t-s 5\n    \t\t\t-dataFontSize large\n    \t\t\t-command (\"mg_string\" + \" \" + $usuario)\n    \t\t\tanimator\n          `);\n\n          catchQuiet  ( `\n    headsUpDisplay\t-l \"SCENE: \"\n    \t\t\t-allowOverlap 1\n    \t\t\t-b 3\n    \t\t\t-s 5\n    \t\t\t-dataFontSize large\n    \t\t\t-command \"file -q -namespace\" //\"mg_scene()\"\n    \t\t\tsceneName\n          `);\n\n    catchQuiet  ( `\n    headsUpDisplay\t-l \"FRAME :\"\n    \t\t\t-allowOverlap 1\n    \t\t\t-b 2\n    \t\t\t-s 5\n    \t\t\t-nodeChanges \"instanceChange\"\n    \t\t\t-dataFontSize large\n    \t\t\t-preset \"currentFrame\"\n    \t\t\tframeCounter\n          `);\n\n    catchQuiet  ( `\n    headsUpDisplay\t-l \"Date | Time  \"\n                -allowOverlap 1\n                -event \"idle\"\n                -nodeChanges \"attributeChange\"\n                -dataFontSize large\n                -command \"date -format \\\"MM / DD / YYYY   |   hh:mm \\\"\"\n                -b 1\n                -s 5\n                dateName\n                `);\n}\n" 
+        -sourceType "mel" 
+        -commandRepeatable 1
+        -flat 1
+    ;
+    shelfButton
+        -enableCommandRepeat 1
+        -flexibleWidthType 3
+        -flexibleWidthValue 32
+        -enable 1
+        -width 39
+        -height 54
+        -manage 1
+        -visible 1
+        -preventOverride 0
+        -annotation "Delete HUD for animation" 
+        -enableBackground 0
+        -backgroundColor 0 0 0 
+        -highlightColor 0.321569 0.521569 0.65098 
+        -align "center" 
+        -label "noHud" 
+        -labelOffset 0
+        -rotation 0
+        -flipX 0
+        -flipY 0
+        -useAlpha 1
+        -font "plainLabelFont" 
+        -overlayLabelColor 0.8 0.8 0.8 
+        -overlayLabelBackColor 0 0 0 0.5 
+        -image "closeAttribute.png" 
+        -image1 "closeAttribute.png" 
+        -style "iconAndTextVertical" 
+        -marginWidth 1
+        -marginHeight 1
+        -command "{\n    catchQuiet  ( `headsUpDisplay -remove sceneName`);\n    catchQuiet  ( `headsUpDisplay -remove frameCounter`);\n    catchQuiet  ( `headsUpDisplay -remove animator`);\n    catchQuiet  ( `headsUpDisplay -remove dateName`);\n}" 
+        -sourceType "mel" 
+        -commandRepeatable 1
+        -flat 1
+    ;
+    shelfButton
+        -enableCommandRepeat 1
+        -flexibleWidthType 3
+        -flexibleWidthValue 32
+        -enable 1
+        -width 35
+        -height 54
+        -manage 1
+        -visible 1
+        -preventOverride 0
+        -annotation "Create camera" 
+        -enableBackground 0
+        -backgroundColor 0 0 0 
+        -highlightColor 0.321569 0.521569 0.65098 
+        -align "center" 
+        -label "cam" 
+        -labelOffset 0
+        -rotation 0
+        -flipX 0
+        -flipY 0
+        -useAlpha 1
+        -font "plainLabelFont" 
+        -overlayLabelColor 0.8 0.8 0.8 
+        -overlayLabelBackColor 0 0 0 0.5 
+        -image "Camera.png" 
+        -image1 "Camera.png" 
+        -style "iconAndTextVertical" 
+        -marginWidth 1
+        -marginHeight 1
+        -command "{\n    \n    string $cam[] = `camera -centerOfInterest 5\n        -focalLength 50\n        -lensSqueezeRatio 1\n        -cameraScale 1\n        -horizontalFilmAperture 1.4173\n        -horizontalFilmOffset 0\n        -verticalFilmAperture 0.9449\n        -verticalFilmOffset 0\n        -filmFit Fill\n        -overscan 1\n        -motionBlur 0\n        -shutterAngle 144\n        -nearClipPlane 0.1\n        -farClipPlane 10000\n        -orthographic 0\n        -orthographicWidth 30\n        -panZoomEnabled 0\n        -horizontalPan 0\n        -verticalPan 0\n        -name \"gwr_cam\"\n        -position 0 100 300\n        -zoom 1`;\n    setAttr ($cam[1]+\".locatorScale\") 10;\n    setAttr ($cam[1]+\".renderable\") 1;\n    catchQuiet(`setAttr \"perspShape.renderable\" 0`);\n//    objectMoveCommand;\n//    cameraMakeNode 1 \"\";\n}" 
+        -sourceType "mel" 
+        -commandRepeatable 1
+        -flat 1
+    ;
+    shelfButton
+        -enableCommandRepeat 1
+        -flexibleWidthType 3
+        -flexibleWidthValue 32
+        -enable 1
+        -width 35
+        -height 54
+        -manage 1
+        -visible 1
+        -preventOverride 0
+        -annotation "FIX scene setting for GWR" 
+        -enableBackground 0
+        -backgroundColor 0 0 0 
+        -highlightColor 0.321569 0.521569 0.65098 
+        -align "center" 
+        -label "FIX Sc" 
+        -labelOffset 0
+        -rotation 0
+        -flipX 0
+        -flipY 0
+        -useAlpha 1
+        -font "plainLabelFont" 
+        -overlayLabelColor 0.8 0.8 0.8 
+        -overlayLabelBackColor 0 0 0 0.5 
+        -image "checkboxOn.png" 
+        -image1 "checkboxOn.png" 
+        -style "iconAndTextVertical" 
+        -marginWidth 1
+        -marginHeight 1
+        -command "// FIX scene settings fo GWR project\n{\n    int $start_time = 1000;\n    int $end_time = 1100;\n\n      // PLAYBACK\n    currentUnit -time pal -updateAnimation false;\n    currentTime $start_time;\n    playbackOptions -e -playbackSpeed 0 -maxPlaybackSpeed 1;\n    playbackOptions -e -minTime $start_time -maxTime $end_time;\n    playbackOptions -e -animationStartTime $start_time -animationEndTime $end_time;\n\n      // RENDERING\n  \tmultiframeFormat(\"exr\");\n  \tsetAttr \"defaultResolution.width\" 1920;\n  \tsetAttr \"defaultResolution.height\" 1080;\n  \tsetAttr \"defaultResolution.deviceAspectRatio\" 1.556;\n  \tsetAttr \"defaultRenderGlobals.startFrame\" $start_time;\n  \tsetAttr \"defaultRenderGlobals.endFrame\" $end_time;\n  \tsetMayaSoftwareFrameExt(3,0);\n  \tsetAttr \"defaultRenderGlobals.extensionPadding\" 3;\n}" 
+        -sourceType "mel" 
+        -commandRepeatable 1
+        -flat 1
+    ;
+    shelfButton
+        -enableCommandRepeat 1
+        -flexibleWidthType 3
+        -flexibleWidthValue 32
+        -enable 1
+        -width 35
+        -height 54
+        -manage 1
+        -visible 1
+        -preventOverride 0
+        -annotation "New Scene (erase ALL DATA)" 
+        -enableBackground 0
+        -backgroundColor 0 0 0 
+        -highlightColor 0.321569 0.521569 0.65098 
+        -align "center" 
+        -label "NEW" 
+        -labelOffset 0
+        -rotation 0
+        -flipX 0
+        -flipY 0
+        -useAlpha 1
+        -font "plainLabelFont" 
+        -overlayLabelColor 0.8 0.8 0.8 
+        -overlayLabelBackColor 0 0 0 0.5 
+        -image "newRenderPass.png" 
+        -image1 "newRenderPass.png" 
+        -style "iconAndTextVertical" 
+        -marginWidth 1
+        -marginHeight 1
+        -command "// New scene for GWR\n{\n    string $dialog = `confirmDialog -title \"NEW SCENE\" -message \"New scene (WARNING: all data will be lost)\"\n    -button \"Yes\" -button \"No\" -defaultButton \"Yes\"\n    -cancelButton \"No\" -dismissString \"No\"`;\n\n    if ($dialog == \"Yes\") {\n\n        print(\"Blowing scene away\\n\");\n\n        file -f -new;\n        int $start_time = 1000;\n        int $end_time = 1100;\n\n        // PLAYBACK\n    \tcurrentUnit -time pal;\n      currentTime $start_time;\n    \tplaybackOptions -e -playbackSpeed 0 -maxPlaybackSpeed 1;\n    \tplaybackOptions -e -minTime $start_time -maxTime $end_time;\n      playbackOptions -e -animationStartTime $start_time -animationEndTime $end_time;\n        // RENDERING\n    \tmultiframeFormat(\"exr\");\n    \tsetAttr \"defaultResolution.width\" 1920;\n    \tsetAttr \"defaultResolution.height\" 1080;\n    \tsetAttr \"defaultResolution.deviceAspectRatio\" 1.556;\n    \tsetAttr \"defaultRenderGlobals.startFrame\"  $start_time;\n    \tsetAttr \"defaultRenderGlobals.endFrame\"  $end_time;\n    \tsetMayaSoftwareFrameExt(3,0);\n\n    \tsetAttr -type \"string\" defaultRenderGlobals.imageFilePrefix \"<Scene>/<Scene>_<RenderLayer>_<RenderPass>\";\n    \tsetAttr \"defaultRenderGlobals.extensionPadding\" 3;\n        // file -import -type \"mayaAscii\"  -ignoreVersion -mergeNamespacesOnClash false -rpr \"vodd_camera_v01\" -options \"v=0;p=17;f=0\"  -pr  -importFrameRate true  -importTimeRange \"override\" \"//sloth/jobs/vodd_9069/common/technical/maya/cameras/vodd_camera_v01.ma\";\n    }\n    else {\n        print(\"Conserving scene\\n\");\n    }\n\n}" 
+        -sourceType "mel" 
+        -commandRepeatable 1
+        -flat 1
+    ;
+    shelfButton
+        -enableCommandRepeat 1
+        -flexibleWidthType 3
+        -flexibleWidthValue 32
+        -enable 1
+        -width 37
+        -height 54
+        -manage 1
+        -visible 1
+        -preventOverride 0
+        -annotation "Export character Sets to alembic" 
+        -enableBackground 0
+        -backgroundColor 0 0 0 
+        -highlightColor 0.321569 0.521569 0.65098 
+        -align "center" 
+        -label "To Abc" 
+        -labelOffset 0
+        -rotation 0
+        -flipX 0
+        -flipY 0
+        -useAlpha 1
+        -font "plainLabelFont" 
+        -imageOverlayLabel "GEO" 
+        -overlayLabelColor 0.8 0.8 0.8 
+        -overlayLabelBackColor 0 0 0 0.5 
+        -image "animateSnapshot.png" 
+        -image1 "animateSnapshot.png" 
+        -style "iconAndTextVertical" 
+        -marginWidth 1
+        -marginHeight 1
+        -command "'''\nGW Alembic saver for Film production v1.3.1\nAuthor: Marco Rossi \nLast modified 2022 FEB 04\n\nChange Log\n1.3.1 - Added check if scene is saved.\n\nNOTES\n- Exports SETs from assets to alembic.\n- SETs MUST be a selection of TRANSFORM nodes to export sucessfully. SHAPE nodes will fail.\n- Maya DOEST NOT handle correctly Instances in Alembic, maya command WILL fail (same name for \"leaf\" nodes).\n- Alembic also NEEDS all nodes have different names, DOES NOT like nodes with same name. Maya command will fail.\n- The files will be written with the NAMESPACE as name, to allow multiple characters from same source file.\n- NAMESPACE cannot be nested. Takes LAST namespace. So the set \"train:wagon1:geo_cache_set\" will be written as \"train.abc\"\n- Defaults output to exports/abd of current project.\n\n'''\n\nimport sys\nimport datetime\nimport getpass\nimport time\nimport os\nimport re\nimport shutil\nimport socket\nimport pymel.core as pm\nimport maya.cmds as cmds\nimport maya.mel as mel\nfrom PySide2 import QtCore\nfrom PySide2.QtWidgets import QAbstractItemView\nfrom PySide2 import QtWidgets\nfrom maya import OpenMayaUI as omui\nfrom shiboken2 import wrapInstance\n\ndef setFilterScript(name):\n    \"\"\" Filter non outliner sets\n    \"\"\"\n    # We first test for plug-in object sets.\n    try:\n        apiNodeType = cmds.nodeType(name, api=True)\n    except RuntimeError:\n        return False\n\n    if apiNodeType == \"kPluginObjectSet\":\n        return True\n\n    # We do not need to test is the object is a set, since that test\n    # has already been done by the outliner\n    try:\n        nodeType = cmds.nodeType(name)\n    except RuntimeError:\n        return False\n\n    # We do not want any rendering sets\n    if nodeType == \"shadingEngine\":\n        return False\n\n    # if the object is not a set, return false\n    if not (nodeType == \"objectSet\" or\n            nodeType == \"textureBakeSet\" or\n            nodeType == \"vertexBakeSet\" or\n            nodeType == \"character\"):\n        return False\n\n    # We also do not want any sets with restrictions\n    restrictionAttrs = [\"verticesOnlySet\", \"edgesOnlySet\", \"facetsOnlySet\", \"editPointsOnlySet\", \"renderableOnlySet\"]\n    if any(cmds.getAttr(\"{0}.{1}\".format(name, attr)) for attr in restrictionAttrs):\n        return False\n\n    # Do not show layers\n    if cmds.getAttr(\"{0}.isLayer\".format(name)):\n        return False\n\n    # Do not show bookmarks\n    annotation = cmds.getAttr(\"{0}.annotation\".format(name))\n    if annotation == \"bookmarkAnimCurves\":\n        return False\n\n    # Whew ... we can finally show it\n    return True\n\ndef getOutlinerSets():\n    return [name for name in cmds.ls(sets=True) if setFilterScript(name)]\n################################################################################\ndef objectIsVisible(object):\n    # if visibility is false. return false\n    if cmds.attributeQuery(\"visibility\", node = object, exists =True) == False:\n        return False\n    #if cmds.attributeQuery(node = object, exists =\"intermediateObject\") == False:\n    #    return False\n    visible = cmds.getAttr(object+\".visibility\")\n    if visible == False:\n        return False\n    parent = cmds.listRelatives(object, parent=True, fullPath = True)\n    if parent == None:\n        return visible\n    return objectIsVisible(parent[0])\n\n################################################################################\ndef getFoldersFiles_abc(path):\n    folderList = []\n    fileList = []\n    try:\n        allData = os.listdir(path)\n        folderList = [f for f in allData if os.path.isdir(os.path.join(path, f))]\n        for file in allData:\n            if file.endswith(\".abc\"):\n                fileList.append(file)\n        fileList.sort()\n        fileList.reverse()\n    except:\n        pass\n    return folderList, fileList\n\ndef getVersion_abc(saveLocationDir):\n    if not os.path.exists(saveLocationDir):\n        nextVersion = \"1\"\n    else:\n        allFiles = os.listdir(saveLocationDir)\n        nextVersion = \"1\" # pre-setting this in case we don't get a match below\n        if allFiles:\n            versions = []\n            for file in allFiles:\n                if file.endswith(\".abc\"):\n                    version_double = re.search(r'_v(\\d\\d)', file)\n                    version_triple = re.search(r'_v(\\d\\d\\d)', file)\n                    if version_double:\n                        versionNumber = str(int(version_double.group(1)))\n                        versions.append(versionNumber)\n                    if version_triple:\n                        versionNumber = str(int(version_triple.group(1)))\n                        versions.append(versionNumber)\n            if versions:\n                sortedVersions = sorted(versions, key=int)\n                lastVersion = sortedVersions[-1]\n                nextVersion = int(lastVersion) + 1\n                nextVersion = str(nextVersion)\n    nextVersion = \"v\" + nextVersion.zfill(3)\n    return nextVersion\n\n################################################################################\n\n\ndef getMayaMainWindow():\n    mayaMainWindowPtr = omui.MQtUtil.mainWindow()\n    return wrapInstance(long(mayaMainWindowPtr), QtWidgets.QWidget)\n\nclass GW_alembic_saver(QtWidgets.QWidget):\n    '''\n    '''\n    def __init__(self, parent=None):\n        QtWidgets.QWidget.__init__(self, parent)\n        mayaMainWindow =  getMayaMainWindow()\n        # check for exiting window to avoid duplicates\n        objectName = \"GwAlembicWindow\"\n        if cmds.window(\"GwAlembicWindow\", exists = True):\n            cmds.deleteUI(\"GwAlembicWindow\", wnd=True)\n        self.setObjectName(objectName)\n        #Parent widget under Maya main window\n        self.setParent(mayaMainWindow)\n        self.setWindowFlags(QtCore.Qt.Window)\n\n        #create MAIN layout ####################################################\n        self.main_Layout = QtWidgets.QVBoxLayout(self)\n        self.setGeometry(1200, 800, 350, 340)\n        self.move(600, 350)\n        self.setWindowTitle('Glassworks Sets Alembic Exporter 1.3.1')\n\n        # Accessing pre existing variables from within Maya\n        self.currentWorkspace = cmds.workspace(q=True, fn=True)\n        self.currentMayaFile = cmds.file(q=True, sceneName=True).split('/')[-1]\n        self.exportsSubdirectory = self.currentWorkspace+\"/exports/abc\"\n\n        # GET the user created SETS in the scene\n        maya_standar_sets = [(u'defaultLightSet'),(u'defaultObjectSet')]\n        user_sets = getOutlinerSets()\n        for non_wanted_set in maya_standar_sets:\n            user_sets.remove(non_wanted_set)\n\n        self.gwTitle = QtWidgets.QLabel(\" GW Export Sets to Alembic\")\n        self.gwTitle.setStyleSheet(\"color: white;background-color:  rgb(37,42,57);\")\n        self.gwTitle.setFixedHeight(30)\n        \n        self.gwTitle2 = QtWidgets.QLabel(\"\"\" Exports selected character SETs to Alemibic\n Models must have the geometry in SETs\n \n IMPORTANT!\n - Alembic file name will be the NAMESPACE of the character.\n - It will be writen in the \"exports/abc\" folder unless \n   otherwise specified.\n - Also will output to CURRENT PROJECT.\n - Hidden geometry will NOT be exported by default.\n - Log file and back-Up will also be writen.\n\n HOW TO USE: \n\n   1) Select SETS to export \n   2) Add \"notes\" (optional)\n   3) Push button \"Save Alembic\" to write to disk\n\n If you want to use other folder, check \"Advanced Options\"\n and use \"Folder\" button to select one.\n\"\"\")\n        self.gwTitle2.setStyleSheet(\"color: white;background-color:  rgb(57,42,37);\")\n        #self.gwTitle.setFixedHeight(30)\n\n        self.setsNameLabel = QtWidgets.QLabel(\"Select sets to export:\", self)\n        self.setsList = QtWidgets.QListWidget(self)\n        for set in user_sets:\n            self.setsList.addItem(set)\n        self.setsList.setSelectionMode(QAbstractItemView.MultiSelection)\n        self.setsList.itemSelectionChanged.connect(self.on_change_list)\n\n        # NOTES FOR ALEMBIC FILE ##########################################\n        self.notesLabel = QtWidgets.QLabel(\"Notes:\", self)\n        self.notes = QtWidgets.QTextEdit(\"\", self)\n        self.notes.setPlainText(\"\")\n        text = self.notes.toPlainText() # returns plain text\n\n        self.toggleAdvancedOptions = QtWidgets.QCheckBox(\"Advanced Options\")\n        self.toggleAdvancedOptions.setChecked(False)\n        self.toggleAdvancedOptions.stateChanged.connect(self.toggle_advanced_options)\n\n        self.toggleOnlyVisible = QtWidgets.QCheckBox(\"Export only visible objects\")\n        self.toggleOnlyVisible.setChecked(True)\n        self.toggleOnlyVisible.setEnabled(False)\n\n        self.toggleNamespacesOnly = QtWidgets.QCheckBox(\"Use Namespace only\")\n        self.toggleNamespacesOnly.setChecked(True)\n        self.toggleNamespacesOnly.setEnabled(False)\n\n        self.BrowseAlembicFile = QtWidgets.QPushButton('Folder', self)\n        self.BrowseAlembicFile.setFocusPolicy(QtCore.Qt.NoFocus)\n        self.BrowseAlembicFile.setEnabled(False)\n        self.connect(self.BrowseAlembicFile, QtCore.SIGNAL('clicked()'), self.browse_for_alembic)\n\n        self.alembicFileName = QtWidgets.QLabel(self.exportsSubdirectory)\n        self.alembicFileName.setStyleSheet(\"color: white;background-color: rgb(37,42,57);\")\n        self.alembicFileName.setFixedHeight(30)\n\n        self.button = QtWidgets.QPushButton('Save Alembic', self)\n        self.button.setFocusPolicy(QtCore.Qt.NoFocus)\n        self.connect(self.button, QtCore.SIGNAL('clicked()'), self.saveAlembic)\n\n        # BUILD LAYOUTS AND WIDGETS ############################################\n        self.main_Layout.addWidget(self.gwTitle)\n        self.main_Layout.addWidget(self.gwTitle2)\n        self.main_Layout.addWidget(self.setsNameLabel)\n        self.main_Layout.addWidget(self.setsList)\n        self.main_Layout.addWidget(self.notesLabel)\n        self.main_Layout.addWidget(self.notes)\n        self.main_Layout.addWidget(self.toggleAdvancedOptions)\n        self.main_Layout.addWidget(self.toggleOnlyVisible)\n        self.main_Layout.addWidget(self.toggleNamespacesOnly)\n        self.main_Layout.addWidget(self.BrowseAlembicFile)\n        self.main_Layout.addWidget(self.alembicFileName)\n\n        self.main_Layout.addWidget(self.button)\n\n    def on_change_list(self):\n        cmds.select(clear=True)\n        for item in self.setsList.selectedItems():\n            # print(item.text())\n            cmds.select(item.text(),add=True )\n\n    def browse_for_alembic(self):\n\n        directory = cmds.fileDialog2(\n            caption=\"Set Alembic folder\",\n            startingDirectory = self.currentWorkspace,\n            fileFilter=\"*.abc\",\n            dialogStyle=2,\n            fileMode = 3\n        )\n        if (directory != None):\n            self.exportsSubdirectory = directory[0]\n            self.alembicFileName.setText(self.exportsSubdirectory)\n        # print self.exportsSubdirectory\n        return\n\n    def toggle_advanced_options(self):\n        if self.toggleAdvancedOptions.isChecked():\n            self.toggleOnlyVisible.setEnabled(True)\n            self.toggleNamespacesOnly.setEnabled(True)\n            self.BrowseAlembicFile.setEnabled(True)\n        else:\n            self.toggleOnlyVisible.setEnabled(False)\n            self.toggleNamespacesOnly.setEnabled(False)\n            self.BrowseAlembicFile.setEnabled(False)\n\n    def selectSets(self):\n        # select the content of the set\n        currentSet=self.setsCombo.currentText()\n        # print (\"current set :\"+currentSet+\"\\n\")\n        if (currentSet != \"<Select set>\"):\n            cmds.select(currentSet,replace=True )\n\n    def saveAlembic(self):\n        # exports = self.exportsSubdirectory\n        user = getpass.getuser()\n        host = socket.gethostname()\n        advanced_options = self.toggleAdvancedOptions.isChecked()\n        Namespaces_only = self.toggleNamespacesOnly.isChecked()\n        export_only_visible = self.toggleOnlyVisible.isChecked()\n\n        # sets_to_export = self.setsList.selectedItems()\n        sets_to_export = []\n        sets_not_saved_to_alembic=[]\n        for item in self.setsList.selectedItems():\n            sets_to_export.append(item.text())\n        if len(sets_to_export) == 0:\n            msgBox = QtWidgets.QMessageBox()\n            msgBox.critical(self,\"Warning\", \"No SETS selected!\\n\\nPlease, select a Set to proceed\")\n            return\n        notes = self.notes.toPlainText()\n        notes = '\\r\\n'+notes.replace('\\n', '\\r\\n')\n        notes = ''.join([i if ord(i) < 128 else ' ' for i in notes])\n\n        print(\"GW Alembic Saver ----------------------------------------------------------------\\n\")\n\n\n        for currentSet in sets_to_export:\n            # print sets_to_export\n            # print currentSet\n            cmds.select(currentSet,replace=True )\n            selected_meshes = cmds.ls(selection=True, long=True)\n            # if len(set(selected_meshes)) == len(selected_meshes):\n            #     print(\"success\")\n            #     print selected_meshes\n            # else:\n            #     print(\"duplicate found\")\n            #     print selected_meshes\n            # return\n            #get selected AND visible objects\n            if export_only_visible:\n                selected_and_visible=[]\n                for obj in selected_meshes:\n                    if objectIsVisible(obj):\n                        selected_and_visible.append(obj)\n                selected_meshes  = selected_and_visible\n\n            # ALEMBIC relevant data for Maya command\n            start =int (cmds.playbackOptions( query=True, animationStartTime=True ))\n            end = int(cmds.playbackOptions( query=True, animationEndTime=True ))\n            frames_per_second =  cmds.currentUnit(query=True, time=True)\n            print(\"start fame: \", start, \" End frame: \" , end , \"fps: \" , frames_per_second)\n            print( \"\\n\");\n            # populate \"root\" varialble with selected geometry\n\n            root_alembic = \"\"\n            for element in selected_meshes:\n                root_alembic = root_alembic + \" -root \" + element\n\n            # print (root_alembic)\n            if Namespaces_only:\n                file_name=currentSet.split(\":\")[0]\n            else:\n                file_name=currentSet.replace(\":\",\"_\") # convert : in NameSpace to _\n            save_name = self.exportsSubdirectory+\"/\"+file_name+\".abc\"\n            # export to alembic command\n            command = \"-frameRange \" + str(start) + \" \" + str(end) +\" -uvWrite -worldSpace -dataFormat ogawa \" + root_alembic + \" -file \" + \"\\\"\" + save_name + \"\\\"\"\n            print (command+\"\\r\\n\")\n\n            viewport_paused = cmds.ogs( query=True,pause = True ) # PAUSE VIEWPORT ############\n            if (not viewport_paused): # TOGGLE VIEPORT\n                cmds.ogs( pause = True )\n                # print (\"deactivating viewport\\n\")\n\n            # print (command)\n            alembic_saved = True #### SAVE ALEMBIC\n            try:\n                cmds.AbcExport ( j = command )\n                print (\"SAVED \"+str(currentSet)+\" to Alembic \")\n            except:\n                alembic_saved = False\n                sets_not_saved_to_alembic.append(currentSet)\n                error = str(\"Failed to save Alembic of :\" +currentSet)\n                cmds.warning( error )\n                print (root_alembic)\n\n            if (not viewport_paused): # TOGGLE VIEPORT\n                cmds.ogs( pause = True )\n                # print(\"Activating viewport\\n\")\n            \n            # Copy version to folder\n            if alembic_saved:\n                directory_of_alembics =self.exportsSubdirectory+\"/\"+file_name\n                if not os.path.exists(directory_of_alembics):\n                    os.makedirs(directory_of_alembics)\n                    print(\"Created directory at: \"+directory_of_alembics+\"\\n\")\n                version=getVersion_abc(directory_of_alembics)\n\n                if  os.path.exists(directory_of_alembics):\n                    print(\"COPY BACK-UP // Source: \"+save_name+\" --> Destination: \"+directory_of_alembics+\"/\"+file_name+\"_\"+version+\".abc\"+\"\\n\")\n                    shutil.copyfile(save_name, directory_of_alembics+\"/\"+file_name+\"_\"+version+\".abc\")\n                print (\"                            ---->\"+version)\n            else:\n                version=\"N/A\"\n            # write LOG info\n            now = datetime.datetime.now()\n            log_file = open(self.exportsSubdirectory+\"/\"+file_name+\".log\", \"a+\")\n            log_file.write(\"------------------------------------------------------------------------------\\r\\n\")\n            log_file.write(str(now.strftime(\"%Y-%m-%d %H:%M\"))+\"\\r\\n\")\n            log_file.write(\"Set: \"+currentSet+\" Version:\"+version+\"\\r\\n\")\n            log_file.write(\"User name: \"+user+\" Machine: \"+host+\"\\r\\n\")\n            log_file.write(\"Maya build: \"+cmds.about(installedVersion=True)+\"\\r\\n\")\n            log_file.write(\"Starf frame: \"+str(start)+\" End frame: \"+str(end)+\" Frames per second: \"+str(frames_per_second)+\"\\r\\n\")\n            log_file.write(\"Project located at: \"+self.currentWorkspace+\"\\r\\n\")\n            log_file.write(\"original Maya file: \"+self.currentMayaFile+\"\\r\\n\")\n            log_file.write(\"Original Full path:\"+cmds.file(q=True, sceneName=True)+\"\\r\\n\")\n            if alembic_saved :\n                log_file.write(\"Alembic Full path :\"+save_name+\"\\r\\n\")\n                log_file.write(\"BackUp file       :\"+directory_of_alembics+\"/\"+file_name+\"_\"+version+\".abc\\r\\n\")\n            else:\n                log_file.write(\"WARNING : FAILED TO SAVE ALEMBIC FILE\\r\\n\")\n                log_file.write(\"TRYED Alembic Full path is:\"+save_name+\"\\r\\n\")\n                log_file.write(\"ALEMBIC Maya command options:\"+command+\"\\r\\n\")\n            log_file.write(\"\\r\\nNotes: \"+notes+\"\\r\\n\")\n            log_file.close()\n        if len(sets_not_saved_to_alembic) > 0:\n            msgBox = QtWidgets.QMessageBox()\n            msgBox.critical(self,\"Alembic failure\", \"Not all SETS saved!\\n\\nCheck script editor!!\\n\\nCHECK if all nodes to export have different names\\nAlso instances are NOT supported by Maya alembic\")\n            print(\"GW Alembic Saver ----------------------------------------------------------------\\n\")\n            for s in sets_not_saved_to_alembic:\n                print ('WARNING: \"'+str(s)+'\" not saved in alembic!\\n')\n            pass\n        else:\n            msgBox = QtWidgets.QMessageBox()\n            msgBox.setWindowTitle(\"Info\")\n            msgBox.setText(\"Alembic saved!\")\n            msgBox.exec_()\n\n        self.close()\n\n# Check if Maya scne file exists, then proceed\nmaya_scene_name = cmds.file(query=True, sceneName=True, shortName=True) \nprint maya_scene_name\nif (maya_scene_name==\"\"):\n    cmds.confirmDialog( title='SCENE NOT SAVED', message='Cannot work with \\\"untitled\\\" Maya scene.\\nPlease, save scene before proceed.', button=['OK'], defaultButton='Ok', dismissString='Ok' )\nelse: \n    dialog = GW_alembic_saver()\n    dialog.show()\n" 
+        -sourceType "python" 
+        -commandRepeatable 1
+        -flat 1
+    ;
+    shelfButton
+        -enableCommandRepeat 1
+        -flexibleWidthType 3
+        -flexibleWidthValue 39
+        -enable 1
+        -width 63
+        -height 54
+        -manage 1
+        -visible 1
+        -preventOverride 0
+        -annotation "Export selected camera to Alembic" 
+        -enableBackground 0
+        -backgroundColor 0 0 0 
+        -highlightColor 0.321569 0.521569 0.65098 
+        -align "center" 
+        -label "CAM to Abc" 
+        -labelOffset 0
+        -rotation 0
+        -flipX 0
+        -flipY 0
+        -useAlpha 1
+        -font "plainLabelFont" 
+        -imageOverlayLabel "CAM" 
+        -overlayLabelColor 0.8 0.8 0.8 
+        -overlayLabelBackColor 0 0 0 0.5 
+        -image "camera.open.svg" 
+        -image1 "camera.open.svg" 
+        -style "iconAndTextVertical" 
+        -marginWidth 1
+        -marginHeight 1
+        -command "/*\nEXPORT selected camera \n    to Alembic at CURRENT_WORKSPACE/export/alembic/\n    with name of \"cam_\"+scene name\n    \n    Marco Rossi (GW Barcelona)\n    26/01/2022 \n    \n    HOW TO USE\n    - Select camera to export (from Outliner or viewport)\n    - Push butto\n   \n    Will copy camera the camera, parent constraint it , bake transforms and export to alembic\n\n*/\n\n{\n    string $currentProject = `workspace -q -rd`; // Get current workspace\n    string $tmp = `file -q -sn -shn`;\n    string $sceneName= `basenameEx($tmp)`; // get scene name\n   \n    string $selection[]=`ls -sl`;\n\n    if ($selection[0] == \"\") {\n        print (\"Nada seleccionado\");\n    }\n    else {\n        string $selectedType=\"\";\n        if (nodeType($selection[0])==\"transform\") {\n            string $relatives[] = `listRelatives -s $selection[0]`;\n            if ($relatives[0]!=\"\"){\n                $selectedType = nodeType($relatives[0]);\n            }\n        }\n        else {\n            $selectedType = nodeType($selection[0]);\n        }\n\n\n        if ($selectedType==\"camera\") {\n            // DO the thing\n            string $selected_camera_transform_to_copy[];\n            if (nodeType($selection[0])==\"transform\"){\n                $selected_camera_transform_to_copy[0]= $selection[0]; // Selection is a transform of a camera\n            }\n            else {\n                $selected_camera_transform_to_copy=`listRelatives -p $selection[0]`;\n            }\n            select -r   $selected_camera_transform_to_copy[0];\n            string $newCamera[]=`duplicate -rr -name (\"cam_\"+$sceneName)`;\n            // print($newCamera[0]);\n            \n            setAttr -lock false ($newCamera[0]+\".tx\"); // Unlock attributes TRS\n            setAttr -lock false ($newCamera[0]+\".ty\");\n            setAttr -lock false ($newCamera[0]+\".tz\");\n            setAttr -lock false ($newCamera[0]+\".rx\");\n            setAttr -lock false ($newCamera[0]+\".ry\");\n            setAttr -lock false ($newCamera[0]+\".rz\");\n            setAttr -lock false ($newCamera[0]+\".sx\");\n            setAttr -lock false ($newCamera[0]+\".sy\");\n            setAttr -lock false ($newCamera[0]+\".sz\");\n\n            catchQuiet ( `parent -world $newCamera[0]`); // Send new camera to World space. Unparent\n\n            select -r $selected_camera_transform_to_copy[0]; // Do the CONSTRAINT\n            select -add $newCamera[0] ;\n            parentConstraint -mo -weight 1;\n            // connectAttr -f gwr_0100_cam_v001Shape.focusDistance gwr_0100_cam_v002Shape.focusDistance;\n            string $range=(`playbackOptions -q -animationStartTime`)+\":\"+(`playbackOptions -q -animationEndTime`);\n            // print($range);\n \n            int $start_capture=`playbackOptions -q -animationStartTime`;\n            int $end_capture=`playbackOptions -q -animationEndTime`;\n            string $capture_range = ($start_capture+\":\"+$end_capture);\n            ogs -pause; // STOP Wiewport\n            bakeResults -simulation true // Bake Keys from new camera\n                -t $capture_range \n                -hierarchy below \n                -sampleBy 1 \n                -oversamplingRate 1 \n                -disableImplicitControl true \n                -preserveOutsideKeys true \n                -sparseAnimCurveBake false \n                -removeBakedAttributeFromLayer false \n                -removeBakedAnimFromLayer false \n                -bakeOnOverrideLayer false \n                -minimizeRotation true \n                -controlPoints false \n                -shape true {$newCamera[0]};\n\n            string $export_path_and_file= ($currentProject+\"/exports/abc/\"+$newCamera[0]+\".abc\");\n            AbcExport -j (\"-frameRange \"+$start_capture+\" \"+ $end_capture+\" -dataFormat ogawa -root \"+$newCamera[0]+\" -file  \\\"\"+$export_path_and_file+\" \\\"\");\n            print(\"CAMERA to alembic\\n\");\n            print(\"  Exported to \"+$export_path_and_file);\n            print(\"\\n  start frame: \"+$start_capture);\n            print(\"\\n  end frame: \"+$end_capture);\n            ogs -pause; // RESUME viewport\n            delete $newCamera[0]; //Clean up\n            \n            confirmDialog \n                -title \"CAMERA EXPORTED!\" \n                -message (\"FULL PATH :\\n\"+$export_path_and_file) -button \"OK\" -icon \"information\";\n        }\n        else {\n            confirmDialog \n                -title \"NO CAMERA\" \n                -message \"Pease, select a camera\" -button \"OK\" -icon \"warning\";\n            \n        }\n    }\n}\n\n\n" 
+        -sourceType "mel" 
+        -commandRepeatable 1
+        -flat 1
+    ;
+    shelfButton
+        -enableCommandRepeat 1
+        -flexibleWidthType 3
+        -flexibleWidthValue 32
+        -enable 1
+        -width 35
+        -height 54
+        -manage 1
+        -visible 1
+        -preventOverride 0
+        -annotation "HELP for tools on GWR shelf" 
+        -enableBackground 0
+        -backgroundColor 0 0 0 
+        -highlightColor 0.321569 0.521569 0.65098 
+        -align "center" 
+        -label "HELP" 
+        -labelOffset 0
+        -rotation 0
+        -flipX 0
+        -flipY 0
+        -useAlpha 1
+        -font "plainLabelFont" 
+        -overlayLabelColor 0.8 0.8 0.8 
+        -overlayLabelBackColor 0 0 0 0.5 
+        -image "help.png" 
+        -image1 "help.png" 
+        -style "iconAndTextVertical" 
+        -marginWidth 1
+        -marginHeight 1
+        -command "// HELP for Shelf things\n{\n\n    window -title \"HELP on GWR tools on SHELF\" -width 300;\n    columnLayout -adjustableColumn true;\n        text -label \"\";\n        text -label \"Herramientas en los botones del Shelf:\";\n        text -label \"\";\n        text -label \"IMPORTANTE! Tiene que hacerse \\\"Set Project\\\" para que funcione bien.\";\n        text -label \"\";\n        text -label \"  - Playblast: (QuickTime o secuencia PNG)\" -align \"left\";\n        text -label \"      realiza un \\\"playblast\\\" (captura) de toda la secuencia  de animacion.\" -align \"left\";\n        text -label \"      Resoulcion fija. Esconde todos los elementos que no son \\\"polygon\\\".\" -align \"left\"; \n        text -label \"      Utiliza la primera camara que encuentra y sea \\\"rendereable\\\".\" -align \"left\";   \n        text -label \"      El resultado lo deja en el directorio\" -align \"left\";\n        text -label \"            <current project>/viewport_capture/animation/ \" -align \"left\";\n        text -label \"      con el nombre de la escena.\" -align \"left\"; \n        text -label \"      PB qt: El fichero es Quicktime .\" -align \"left\"; \n        text -label \"      PB png: Carpeta con nombre de la escena y secuencia de imagenes PNG\" -align \"left\"; \n        text -label \"\";\n        text -label \"  - HUD:\"   -align \"left\";\n        text -label \"      Muestra el HUD de animacion con info de la escena y animacion.\"   -align \"left\";\n        text -label \"\";\n        text -label \"  - noHud: No HUD.\"   -align \"left\";\n        text -label \"      Esconde el HUD de animacion.\"   -align \"left\";\n        text -label \"\";\n        text -label \"  - cam: New Camera\"   -align \"left\";\n        text -label \"      Crea una camara (\\\"rendereable\\\") a la escala de la escena.\"   -align \"left\";\n        text -label \"\";\n        text -label \"  - Fix Sc: \\\"Fix Scene\\\"\"   -align \"left\";\n        text -label \"      Ajusta la escena a 25 ftp.\"   -align \"left\"; \n        text -label \"      Pone el fotograma inicial a 1000 y el final a 1100.\"   -align \"left\";\n        text -label \"      Fija la resolucion de la escena a las especificaciones del proyecto.\"   -align \"left\";\n        text -label \"\";\n        text -label \"  - NEW:: New Scene\"   -align \"left\";\n        text -label \"      Crea una escena nueva con los settings del proyecto.\"   -align \"left\";\n        text -label \"      CUIDADO!! Borra la que este en memoria!!\"   -align \"left\";\n\n        text -label \"\";\n\n    showWindow;\n}" 
+        -sourceType "mel" 
+        -commandRepeatable 1
+        -flat 1
+    ;
+
+} 
