@@ -8,4 +8,4 @@ En la carpeta "code" estan los Shelfs de produccion utilizados para los proyecto
 
 ### Tips
 
-- Instalar codec de Quicktime pero no el player: https://sebcastilho.com/blog/2017/4/2/how-to-playblast-h264-in-maya-without-quicktime-installed
+- Instalar codec de Quicktime pero no el player: En el  instalador en modo custom dejamos `quicktime essentials` y desactivamos el player. https://sebcastilho.com/blog/2017/4/2/how-to-playblast-h264-in-maya-without-quicktime-installed 
