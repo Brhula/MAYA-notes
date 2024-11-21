@@ -1,5 +1,7 @@
 ## Maya Pyton code
 
+
+Check if QuickTime plug-in is installed:
 ```Python
 # Pyton code to check for if Quicktime is installed (Windows)
 import os
